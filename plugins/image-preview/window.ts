@@ -59,7 +59,6 @@ function run () {
   panel.orderFrontRegardless
   say('shown')
   let entered = false
-  const initial = mouse
   const startTime = Date.now()
   while (true) {
     $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.04))
@@ -70,8 +69,10 @@ function run () {
     } else if (entered) {
       break
     } else {
-      const dist = Math.hypot(cur.x - initial.x, cur.y - initial.y)
-      if (dist > 35 || (Date.now() - startTime > 4000)) break
+      const dx = Math.max(0, Math.max(x - cur.x, cur.x - (x + outer.width)))
+      const dy = Math.max(0, Math.max(y - cur.y, cur.y - (y + outer.height)))
+      const dist = Math.hypot(dx, dy)
+      if (dist > 80 || (Date.now() - startTime > 4000)) break
     }
   }
 }
@@ -125,7 +126,6 @@ root.deiconify()
 root.update_idletasks()
 print('shown', flush=True)
 entered = False
-initial_x, initial_y = mouse_x, mouse_y
 start_time = time.time()
 
 def check_hover():
@@ -138,8 +138,10 @@ def check_hover():
         root.destroy()
         return
     else:
-        dist = math.hypot(cur_x - initial_x, cur_y - initial_y)
-        if dist > 35 or (time.time() - start_time > 4.0):
+        dx = max(0, max(x - cur_x, cur_x - (x + width)))
+        dy = max(0, max(y - cur_y, cur_y - (y + height)))
+        dist = math.hypot(dx, dy)
+        if dist > 80 or (time.time() - start_time > 4.0):
             root.destroy()
             return
     root.after(35, check_hover)
@@ -176,8 +178,8 @@ public class ImagePreviewPopupV2 : Form {
 Add-Type -Path $assembly
 try { $image = [System.Drawing.Image]::FromFile($env:IMAGE_PREVIEW_FILE) } catch { exit 1 }
 $cursor = [System.Windows.Forms.Cursor]::Position
+$initialCursor = $cursor
 $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
-$fit = [Math]::Min(1.0, [Math]::Min($largest / [Math]::Max($image.Width, $image.Height), [Math]::Min($area.Width * 0.7 / $image.Width, $area.Height * 0.7 / $image.Height)))
 $pad = 6
 $gap = 18
 $width = [int]($image.Width * $fit) + $pad * 2
@@ -232,23 +234,14 @@ $hoverTimer.add_Tick({
     return
   }
 
-  $envelope = [System.Drawing.Rectangle]::FromLTRB(
-    [Math]::Min($initialCursor.X, $form.Bounds.Left) - 20,
-    [Math]::Min($initialCursor.Y, $form.Bounds.Top) - 20,
-    [Math]::Max($initialCursor.X, $form.Bounds.Right) + 20,
-    [Math]::Max($initialCursor.Y, $form.Bounds.Bottom) + 20
-  )
-
-  $dx = $pos.X - $initialCursor.X
-  $dy = $pos.Y - $initialCursor.Y
+  $dx = [Math]::Max(0, [Math]::Max($form.Bounds.Left - $pos.X, $pos.X - $form.Bounds.Right))
+  $dy = [Math]::Max(0, [Math]::Max($form.Bounds.Top - $pos.Y, $pos.Y - $form.Bounds.Bottom))
   $dist = [Math]::Sqrt($dx * $dx + $dy * $dy)
 
-  if (-not $envelope.Contains($pos) -or ($dist -gt 35)) {
+  if ($dist -gt 80) {
     $form.Close()
     return
   }
-
-  $elapsed = ([DateTime]::UtcNow - $script:startTime).TotalSeconds
   if ($elapsed -gt 4.0) {
     $form.Close()
     return
