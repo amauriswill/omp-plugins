@@ -20,10 +20,11 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
 
   const launchPreview = (tokenOrPath: string | undefined, ctx: ExtensionContext): boolean => {
     const resolved = resolveImageTarget(tokenOrPath, ctx.cwd);
-    if (!resolved) return false;
+    const targetPath = resolved ? resolved.path : tokenOrPath;
+    if (!targetPath) return false;
 
     closeActivePreview();
-    activePreviewProcess = spawnFloatingPreview(resolved.path, 800, 120);
+    activePreviewProcess = spawnFloatingPreview(targetPath, 800, 120);
 
     if (activePreviewProcess) {
       activePreviewProcess.on("exit", () => {

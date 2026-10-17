@@ -133,18 +133,18 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $largest = if ($env:IMAGE_PREVIEW_SIZE) { [int]$env:IMAGE_PREVIEW_SIZE } else { 800 }
 $life = if ($env:IMAGE_PREVIEW_LIFE) { [int]$env:IMAGE_PREVIEW_LIFE } else { 120 }
-$assembly = Join-Path $env:TEMP 'image-preview-popup-1.dll'
+$assembly = Join-Path $env:TEMP 'image-preview-popup-v2.dll'
 if (-not (Test-Path $assembly)) {
   try {
     Add-Type -OutputAssembly $assembly -OutputType Library -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
 using System;
 using System.Windows.Forms;
-public class ImagePreviewPopup : Form {
+public class ImagePreviewPopupV2 : Form {
   protected override bool ShowWithoutActivation { get { return true; } }
   protected override CreateParams CreateParams {
     get {
       CreateParams p = base.CreateParams;
-      p.ExStyle |= 0x08000000 | 0x00000080 | 0x00000008 | 0x00000020;
+      p.ExStyle |= 0x08000000 | 0x00000080 | 0x00000008;
       return p;
     }
   }
@@ -168,19 +168,31 @@ if ($y -lt $area.Top) { $y = $cursor.Y + $gap }
 if ($x + $width -gt $area.Right) { $x = $cursor.X - $gap - $width }
 $x = [Math]::Max($area.Left, [Math]::Min($x, $area.Right - $width))
 $y = [Math]::Max($area.Top, [Math]::Min($y, $area.Bottom - $height))
-$form = New-Object ImagePreviewPopup
+$form = New-Object ImagePreviewPopupV2
 $form.FormBorderStyle = 'None'
 $form.ShowInTaskbar = $false
 $form.TopMost = $true
 $form.StartPosition = 'Manual'
 $form.Bounds = New-Object System.Drawing.Rectangle($x, $y, $width, $height)
-$form.BackColor = [System.Drawing.Color]::FromArgb(32, 32, 32)
+$form.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
 $form.Padding = New-Object System.Windows.Forms.Padding($pad)
 $form.Opacity = 0.99
+$form.KeyPreview = $true
 $box = New-Object System.Windows.Forms.PictureBox
 $box.Dock = 'Fill'
 $box.SizeMode = 'Zoom'
 $box.Image = $image
+$box.Cursor = [System.Windows.Forms.Cursors]::Hand
+$box.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
+$clickAction = {
+  try { [System.Diagnostics.Process]::Start($env:IMAGE_PREVIEW_FILE) } catch {}
+  $form.Close()
+}
+$box.add_Click($clickAction)
+$form.add_Click($clickAction)
+$form.add_KeyDown({
+  if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { $form.Close() }
+})
 $form.Controls.Add($box)
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $life * 1000

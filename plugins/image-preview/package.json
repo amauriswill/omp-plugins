@@ -1,8 +1,9 @@
 {
   "name": "image-preview",
-  "version": "1.0.0",
-  "description": "Terminal image preview tool and /preview-image command with half-block truecolor and ASCII support",
+  "version": "1.0.1",
+  "description": "Floating borderless image preview by mouse pointer and system viewer integration",
   "main": "index.ts",
+  "type": "module",
   "omp": {
     "extensions": ["./index.ts"]
   }

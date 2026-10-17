@@ -9,6 +9,65 @@ export interface ResolvedImage {
   name: string;
 }
 
+function isWebP(filePath: string): boolean {
+  try {
+    if (filePath.toLowerCase().endsWith(".webp")) return true;
+    const buf = Buffer.alloc(12);
+    const fd = fs.openSync(filePath, "r");
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    return buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP";
+  } catch {
+    return false;
+  }
+}
+
+function ensureCompatibleImage(filePath: string): string {
+  if (process.platform !== "win32") return filePath;
+
+  // On Windows, GDI+ cannot natively decode WebP: convert to temporary PNG
+  if (isWebP(filePath)) {
+    const tempPng = path.join(os.tmpdir(), `omp_converted_${path.basename(filePath, path.extname(filePath))}.png`);
+    if (fs.existsSync(tempPng)) {
+      return tempPng;
+    }
+    const res = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", filePath, tempPng]);
+    if (res.status === 0 && fs.existsSync(tempPng)) {
+      return tempPng;
+    }
+  }
+
+  // If file has no extension, detect format and copy with proper extension so GDI+ can load it
+  if (!path.extname(filePath)) {
+    try {
+      const buf = Buffer.alloc(8);
+      const fd = fs.openSync(filePath, "r");
+      fs.readSync(fd, buf, 0, 8, 0);
+      fs.closeSync(fd);
+
+      let ext = ".png";
+      if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) ext = ".jpg";
+      else if (buf.toString("ascii", 0, 4) === "RIFF") ext = ".webp";
+      else if (buf.toString("ascii", 0, 2) === "BM") ext = ".bmp";
+      else if (buf.toString("ascii", 0, 3) === "GIF") ext = ".gif";
+
+      if (ext === ".webp") {
+        const tempPng = path.join(os.tmpdir(), `omp_converted_${path.basename(filePath)}.png`);
+        const res = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", filePath, tempPng]);
+        if (res.status === 0 && fs.existsSync(tempPng)) return tempPng;
+      } else {
+        const tempFile = path.join(os.tmpdir(), `omp_img_${path.basename(filePath)}${ext}`);
+        if (!fs.existsSync(tempFile)) {
+          fs.copyFileSync(filePath, tempFile);
+        }
+        return tempFile;
+      }
+    } catch {}
+  }
+
+  return filePath;
+}
+
 export function resolveImageTarget(
   tokenOrPath?: string,
   cwd?: string
@@ -27,15 +86,13 @@ export function resolveImageTarget(
     }
   }
 
-  // 2. Scan newest session JSONL in ~/.omp/agent/sessions/
+  // 2. Scan recent session JSONL files in ~/.omp/agent/sessions/
   if (!candidate) {
     const userHome = process.env.USERPROFILE ?? process.env.HOME ?? "";
     const sessionsDir = path.join(userHome, ".omp", "agent", "sessions");
 
     if (fs.existsSync(sessionsDir)) {
-      let newestFile: string | null = null;
-      let newestMtime = 0;
-
+      const sessionFiles: { path: string; mtime: number }[] = [];
       for (const d of fs.readdirSync(sessionsDir)) {
         const fullDir = path.join(sessionsDir, d);
         try {
@@ -44,18 +101,17 @@ export function resolveImageTarget(
             if (f.endsWith(".jsonl")) {
               const fp = path.join(fullDir, f);
               const mt = fs.statSync(fp).mtimeMs;
-              if (mt > newestMtime) {
-                newestMtime = mt;
-                newestFile = fp;
-              }
+              sessionFiles.push({ path: fp, mtime: mt });
             }
           }
         } catch {}
       }
 
-      if (newestFile) {
+      sessionFiles.sort((a, b) => b.mtime - a.mtime);
+
+      for (const s of sessionFiles.slice(0, 5)) {
         try {
-          const lines = fs.readFileSync(newestFile, "utf-8").split("\n");
+          const lines = fs.readFileSync(s.path, "utf-8").split("\n");
           let lastFound: string | null = null;
           let indexFound: string | null = null;
 
@@ -74,6 +130,17 @@ export function resolveImageTarget(
                       indexFound = details.path;
                     }
                     lastFound = details.path;
+                  }
+                }
+              }
+
+              // Check content text for "Source path: `...`"
+              if ("content" in obj && typeof obj.content === "string") {
+                const sourceMatch = obj.content.match(/Source path:\s*`([^`]+)`/i);
+                if (sourceMatch && sourceMatch[1] && fs.existsSync(sourceMatch[1])) {
+                  lastFound = sourceMatch[1];
+                  if (targetIndex !== null && obj.content.includes(`[Image #${targetIndex}]`)) {
+                    indexFound = sourceMatch[1];
                   }
                 }
               }
@@ -102,7 +169,10 @@ export function resolveImageTarget(
             } catch {}
           }
 
-          candidate = indexFound ?? lastFound;
+          if (indexFound || lastFound) {
+            candidate = indexFound ?? lastFound;
+            break;
+          }
         } catch {}
       }
     }
@@ -131,18 +201,10 @@ export function resolveImageTarget(
 
   if (!candidate) return null;
 
-  // On Windows, if image is .webp, convert to temporary PNG for System.Drawing GDI+ compatibility
-  if (candidate.toLowerCase().endsWith(".webp") && process.platform === "win32") {
-    const tempPng = path.join(os.tmpdir(), `omp_converted_${path.basename(candidate, ".webp")}.png`);
-    if (!fs.existsSync(tempPng)) {
-      const res = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", candidate, tempPng]);
-      if (res.status === 0 && fs.existsSync(tempPng)) {
-        return { path: tempPng, originalPath: candidate, name: path.basename(candidate) };
-      }
-    } else {
-      return { path: tempPng, originalPath: candidate, name: path.basename(candidate) };
-    }
-  }
-
-  return { path: candidate, originalPath: candidate, name: path.basename(candidate) };
+  const compatiblePath = ensureCompatibleImage(candidate);
+  return {
+    path: compatiblePath,
+    originalPath: candidate,
+    name: path.basename(candidate)
+  };
 }
