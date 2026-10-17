@@ -1,0 +1,45 @@
+# Alacritty configuration matching Base16 Default Dark / Screenshot
+
+[window]
+padding = { x = 12, y = 10 }
+dynamic_padding = true
+opacity = 0.98
+
+[cursor]
+style = { shape = "Block", blinking = "On" }
+
+[colors.primary]
+background = "#181818"
+foreground = "#d8d8d8"
+
+[colors.cursor]
+text = "#181818"
+cursor = "#d8d8d8"
+
+[colors.normal]
+black = "#181818"
+red = "#ab4642"
+green = "#90a959"
+yellow = "#f4bf75"
+blue = "#7cafc2"
+magenta = "#ba8baf"
+cyan = "#86c1b9"
+white = "#d8d8d8"
+
+[colors.bright]
+black = "#585858"
+red = "#ab4642"
+green = "#90a959"
+yellow = "#f4bf75"
+blue = "#7cafc2"
+magenta = "#ba8baf"
+cyan = "#86c1b9"
+white = "#f8f8f8"
+
+[colors.line_indicator]
+foreground = "None"
+background = "#262626"
+
+[colors.selection]
+text = "CellForeground"
+background = "#262626"

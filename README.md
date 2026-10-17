@@ -292,6 +292,37 @@ omp plugin link ./plugins/image-preview
 
 ---
 
+## 🎨 Tema Visual Alacritty Dark (Configuración Portátil)
+
+Este repositorio incluye el esquema de color y tema visual oficial **Base16 Default Dark / Alacritty Charcoal** para replicar la experiencia visual en cualquier otro equipo:
+
+### Archivos de Configuración Incluidos:
+- `themes/alacritty.json`: Tema completo para `omp` con paleta `#181818`, soporte de Nerd Fonts y sintaxis resaltada.
+- `config/config.yml`: Archivo de configuración listo para colocar en `~/.omp/agent/config.yml`.
+- `config/alacritty.toml`: Configuración de colores y padding para el emulador de terminal Alacritty.
+
+### Cómo aplicarlo en cualquier equipo:
+
+1. **Automático**: Los scripts `install.ps1` o `install.sh` copian el tema a `~/.omp/agent/themes/` automáticamente.
+2. **Manual en omp**:
+   ```bash
+   # Copiar tema
+   cp themes/alacritty.json ~/.omp/agent/themes/alacritty.json
+   ```
+   Añadir en `~/.omp/agent/config.yml`:
+   ```yaml
+   theme:
+     dark: alacritty
+   symbolPreset: nerd
+   statusLine:
+     showHookStatus: true
+   ```
+3. **Para Alacritty**:
+   - **Windows**: Copiar `config/alacritty.toml` a `%APPDATA%\alacritty\alacritty.toml`
+   - **macOS / Linux**: Copiar `config/alacritty.toml` a `~/.config/alacritty/alacritty.toml`
+
+---
+
 ## 📁 Estructura del Repositorio
 
 ```text
@@ -302,8 +333,14 @@ omp-plugins/
 │   └── marketplace.json       # Compatibilidad con claude marketplace
 ├── package.json               # Monorepo Workspace
 ├── README.md                  # Documentación principal
-├── install.ps1                # Script automatizado PowerShell
-├── install.sh                 # Script automatizado Bash
+├── LICENSE                    # Licencia MIT
+├── install.ps1                # Script automatizado PowerShell (plugins + tema)
+├── install.sh                 # Script automatizado Bash (plugins + tema)
+├── themes/
+│   └── alacritty.json         # Tema Alacritty Dark para omp
+├── config/
+│   ├── config.yml             # Configuración portátil para omp
+│   └── alacritty.toml         # Configuración portátil para Alacritty
 └── plugins/
     ├── commit/                # /commit + conventional commits
     ├── think-hard/            # Prefijo '+' razonamiento máximo
@@ -311,9 +348,8 @@ omp-plugins/
     ├── token-meter/           # Telemetría de tokens en tiempo real
     ├── sub-meter/             # Medidor de cuotas y resets
     ├── after/                 # Cola no intrusiva de tareas
-    └── image-preview/         # Previsualizador terminal de imágenes
+    └── image-preview/         # Previsualizador flotante nativo de imágenes
 ```
-
 ---
 
 ## 📄 Licencia

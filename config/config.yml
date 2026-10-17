@@ -1,0 +1,17 @@
+# Configuración recomendada para omp (~/.omp/agent/config.yml)
+# Tema visual Alacritty Dark con soporte Nerd Fonts y roles de modelos
+
+theme:
+  dark: alacritty
+
+symbolPreset: nerd
+
+statusLine:
+  showHookStatus: true
+
+modelRoles:
+  default: google-antigravity/gemini-3.8-flash
+  smol: google-antigravity/gemini-2.5-flash-lite
+  slow: google-antigravity/claude-sonnet-5-5
+
+defaultThinkingLevel: auto

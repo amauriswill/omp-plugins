@@ -26,7 +26,12 @@ for p in "${PLUGINS[@]}"; do
   omp plugin install "${p}@omp-plugins" || omp plugin link "$DIR/plugins/$p"
 done
 
-echo -e "\n3. Estado actual de plugins:"
+echo -e "\n3. Instalando tema visual Alacritty..."
+mkdir -p "$HOME/.omp/agent/themes"
+cp "$DIR/themes/alacritty.json" "$HOME/.omp/agent/themes/alacritty.json"
+echo "   -> Tema alacritty instalado en $HOME/.omp/agent/themes/alacritty.json"
+
+echo -e "\n4. Estado actual de plugins:"
 omp plugin list
 
 echo "=========================================="
