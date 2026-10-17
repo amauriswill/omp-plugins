@@ -180,6 +180,7 @@ try { $image = [System.Drawing.Image]::FromFile($env:IMAGE_PREVIEW_FILE) } catch
 $cursor = [System.Windows.Forms.Cursor]::Position
 $initialCursor = $cursor
 $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
+$fit = [Math]::Min(1.0, [Math]::Min($largest / [Math]::Max($image.Width, $image.Height), [Math]::Min($area.Width * 0.7 / $image.Width, $area.Height * 0.7 / $image.Height)))
 $pad = 6
 $gap = 18
 $width = [int]($image.Width * $fit) + $pad * 2
@@ -237,11 +238,11 @@ $hoverTimer.add_Tick({
   $dx = [Math]::Max(0, [Math]::Max($form.Bounds.Left - $pos.X, $pos.X - $form.Bounds.Right))
   $dy = [Math]::Max(0, [Math]::Max($form.Bounds.Top - $pos.Y, $pos.Y - $form.Bounds.Bottom))
   $dist = [Math]::Sqrt($dx * $dx + $dy * $dy)
-
   if ($dist -gt 80) {
     $form.Close()
     return
   }
+  $elapsed = ([DateTime]::UtcNow - $script:startTime).TotalSeconds
   if ($elapsed -gt 4.0) {
     $form.Close()
     return
