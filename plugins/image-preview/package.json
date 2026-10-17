@@ -1,0 +1,9 @@
+{
+  "name": "image-preview",
+  "version": "1.0.0",
+  "description": "Terminal image preview tool and /preview-image command with half-block truecolor and ASCII support",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

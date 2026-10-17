@@ -1,0 +1,15 @@
+{
+  "name": "omp-plugins",
+  "version": "1.0.0",
+  "description": "Essential productivity and telemetry plugins for omp",
+  "author": "amauriswill",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amauriswill/omp-plugins.git"
+  },
+  "private": true,
+  "workspaces": [
+    "plugins/*"
+  ]
+}

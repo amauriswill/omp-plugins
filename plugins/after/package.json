@@ -1,0 +1,9 @@
+{
+  "name": "after",
+  "version": "1.0.0",
+  "description": "Prompt queue: /after <task> queues tasks to run when current task finishes without steering",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

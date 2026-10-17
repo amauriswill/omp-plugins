@@ -1,0 +1,64 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omp-plugins",
+  "owner": {
+    "name": "amauriswill",
+    "url": "https://github.com/amauriswill"
+  },
+  "metadata": {
+    "description": "Essential productivity and telemetry plugins for omp: Conventional Commits, Think Hard (+), Use Smol (_), Token Meter, Sub Meter, After queue, and Image Preview.",
+    "version": "1.0.0",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "commit",
+      "source": "./commit",
+      "description": "/commit asks commit + push, commit only or new branch, then splits changes into Conventional Commits.",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "think-hard",
+      "source": "./think-hard",
+      "description": "Start a prompt with + and that turn thinks at max reasoning effort.",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "use-smol",
+      "source": "./use-smol",
+      "description": "Start a prompt with _ to run that turn on a fast/smol model (Haiku/Flash/smol).",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "token-meter",
+      "source": "./token-meter",
+      "description": "Live turn tokens (in, out, cache) and session total in the TUI status bar and /tokens command.",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "sub-meter",
+      "source": "./sub-meter",
+      "description": "Subscription and rate-limit tracker (5h / 7d windows) as visual progress bar in TUI status and /sub-meter command.",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "after",
+      "source": "./after",
+      "description": "Prompt queue: /after <task> queues tasks to run when current task finishes without steering.",
+      "version": "1.0.0",
+      "category": "productivity"
+    },
+    {
+      "name": "image-preview",
+      "source": "./image-preview",
+      "description": "Cross-platform terminal image preview tool and /preview-image command with half-block truecolor and ASCII support.",
+      "version": "1.0.0",
+      "category": "productivity"
+    }
+  ]
+}

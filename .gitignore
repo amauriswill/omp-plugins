@@ -1,0 +1,19 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun.lock*
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary and build
+*.tmp
+*.log
+temp/
+img_preview_*.bmp
+omp_img_*.bmp

@@ -1,0 +1,9 @@
+{
+  "name": "think-hard",
+  "version": "1.0.0",
+  "description": "Start a prompt with + to think at maximum reasoning effort for that turn",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

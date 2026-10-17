@@ -1,0 +1,9 @@
+{
+  "name": "token-meter",
+  "version": "1.0.0",
+  "description": "Live token tracker: turn input/output/cache and session totals in TUI status and /tokens",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

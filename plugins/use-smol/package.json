@@ -1,0 +1,9 @@
+{
+  "name": "use-smol",
+  "version": "1.0.0",
+  "description": "Start a prompt with _ to run that turn on a fast/smol model (Haiku / Flash / smol)",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

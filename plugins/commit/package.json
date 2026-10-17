@@ -1,0 +1,9 @@
+{
+  "name": "commit",
+  "version": "1.0.0",
+  "description": "Conventional Commits helper: commit + push, commit only, or new branch",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "sub-meter",
+  "version": "1.0.0",
+  "description": "Subscription and rate-limit tracker with visual progress bars in TUI status and /sub-meter",
+  "main": "index.ts",
+  "omp": {
+    "extensions": ["./index.ts"]
+  }
+}
