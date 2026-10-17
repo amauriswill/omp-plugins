@@ -1,7 +1,6 @@
 import type { ChildProcess } from "node:child_process";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
+import { resolveImageTarget } from "./resolver";
 import { openInSystemViewer, spawnFloatingPreview } from "./window";
 
 export default function imagePreviewPlugin(pi: ExtensionAPI) {
@@ -14,24 +13,17 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
     if (activePreviewProcess) {
       try {
         activePreviewProcess.kill();
-      } catch {
-        // Process already exited
-      }
+      } catch {}
       activePreviewProcess = null;
     }
   };
 
-  const launchPreview = async (filePath: string, ctx: ExtensionContext): Promise<boolean> => {
-    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(ctx.cwd, filePath);
-
-    try {
-      await fs.access(fullPath);
-    } catch {
-      return false;
-    }
+  const launchPreview = (tokenOrPath: string | undefined, ctx: ExtensionContext): boolean => {
+    const resolved = resolveImageTarget(tokenOrPath, ctx.cwd);
+    if (!resolved) return false;
 
     closeActivePreview();
-    activePreviewProcess = spawnFloatingPreview(fullPath, 800, 120);
+    activePreviewProcess = spawnFloatingPreview(resolved.path, 800, 120);
 
     if (activePreviewProcess) {
       activePreviewProcess.on("exit", () => {
@@ -47,9 +39,9 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
   pi.registerTool({
     name: "preview_image",
     label: "Preview Image",
-    description: "Opens a sharp, borderless floating preview window by the mouse pointer outside the terminal, or opens in default system viewer",
+    description: "Opens a sharp, borderless floating preview window by the mouse pointer outside the terminal, or opens in default system viewer. Accepts [Image #N] tokens or file paths.",
     parameters: z.object({
-      path: z.string().describe("Path to the image file (png, jpg, webp, bmp, gif)"),
+      path: z.string().optional().describe("Path to the image file, token [Image #1], or index 1 (defaults to latest image)"),
       action: z
         .enum(["preview", "open", "close"])
         .optional()
@@ -57,7 +49,7 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
         .describe("Action: 'preview' (floating window by cursor), 'open' (system viewer), or 'close'")
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const fullPath = path.isAbsolute(params.path) ? params.path : path.join(ctx.cwd, params.path);
+      const resolved = resolveImageTarget(params.path, ctx.cwd);
 
       if (params.action === "close") {
         closeActivePreview();
@@ -67,19 +59,26 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
         };
       }
 
-      if (params.action === "open") {
-        openInSystemViewer(fullPath);
+      if (!resolved) {
         return {
-          content: [{ type: "text", text: `Opened ${path.basename(params.path)} in system default viewer.` }],
-          details: { action: "open", path: fullPath }
+          content: [{ type: "text", text: `Unable to locate image for '${params.path ?? "latest"}'. No image attachment or file found.` }],
+          details: { error: "not_found", target: params.path }
         };
       }
 
-      const ok = await launchPreview(fullPath, ctx);
+      if (params.action === "open") {
+        openInSystemViewer(resolved.originalPath);
+        return {
+          content: [{ type: "text", text: `Opened ${resolved.name} in system default viewer.` }],
+          details: { action: "open", path: resolved.originalPath }
+        };
+      }
+
+      const ok = launchPreview(resolved.path, ctx);
       if (!ok) {
         return {
-          content: [{ type: "text", text: `Unable to open preview for ${params.path}. File may not exist or window creation failed.` }],
-          details: { error: "preview_failed", path: fullPath }
+          content: [{ type: "text", text: `Failed to spawn floating preview window for ${resolved.name}.` }],
+          details: { error: "preview_failed", path: resolved.path }
         };
       }
 
@@ -87,46 +86,49 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
         content: [
           {
             type: "text",
-            text: `Floating preview window opened beside pointer for ${path.basename(params.path)}. Use /open-image to open in system viewer.`
+            text: `Floating preview window opened beside cursor for ${resolved.name}. Use /open-image to open in system default viewer.`
           }
         ],
-        details: { action: "preview", path: fullPath }
+        details: { action: "preview", path: resolved.path, name: resolved.name }
       };
     }
   });
 
   // Slash command: /preview-image
   pi.registerCommand("preview-image", {
-    description: "Open a floating preview window by the pointer (/preview-image <file.png>)",
+    description: "Open floating preview window by pointer for an image (/preview-image [Image #1] or path)",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       const target = args.trim();
-      if (!target) {
-        ctx.ui.notify("Usage: /preview-image <path/to/image.png>", "warning");
+      const resolved = resolveImageTarget(target || undefined, ctx.cwd);
+
+      if (!resolved) {
+        ctx.ui.notify("No image found. Specify a path or [Image #N], or attach an image.", "warning");
         return;
       }
 
-      const ok = await launchPreview(target, ctx);
+      const ok = launchPreview(resolved.path, ctx);
       if (ok) {
-        ctx.ui.notify(`🖼️ Floating preview window opened for ${path.basename(target)}`, "info");
+        ctx.ui.notify(`🖼️ Ventana flotante abierta junto al cursor: ${resolved.name}`, "info");
       } else {
-        ctx.ui.notify(`Failed to open preview for "${target}". Check if file exists.`, "error");
+        ctx.ui.notify(`Error al abrir previsualización de "${resolved.name}"`, "error");
       }
     }
   });
 
   // Slash command: /open-image
   pi.registerCommand("open-image", {
-    description: "Open the image in the system default viewer (Preview, Photos, xdg-open)",
+    description: "Open image in system default viewer (/open-image [Image #1] or path)",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       const target = args.trim();
-      if (!target) {
-        ctx.ui.notify("Usage: /open-image <path/to/image.png>", "warning");
+      const resolved = resolveImageTarget(target || undefined, ctx.cwd);
+
+      if (!resolved) {
+        ctx.ui.notify("No image found. Specify a path or [Image #N], or attach an image.", "warning");
         return;
       }
 
-      const fullPath = path.isAbsolute(target) ? target : path.join(ctx.cwd, target);
-      openInSystemViewer(fullPath);
-      ctx.ui.notify(`Opened ${path.basename(target)} in system default viewer`, "info");
+      openInSystemViewer(resolved.originalPath);
+      ctx.ui.notify(`🖼️ Abierto en visor del sistema: ${resolved.name}`, "info");
     }
   });
 
@@ -135,26 +137,33 @@ export default function imagePreviewPlugin(pi: ExtensionAPI) {
     description: "Close active floating image preview window",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       closeActivePreview();
-      ctx.ui.notify("Preview window closed", "info");
+      ctx.ui.notify("Ventana de previsualización cerrada", "info");
     }
   });
 
-  // Hook: detect image references in prompts
+  // Hook: detect image references or attachments in prompts
   pi.on("input", async (event, ctx: ExtensionContext) => {
     const text = event.text;
-    const imgMatch = text.match(/\[Image #\d+\]|[\w\-./\\]+\.(png|jpe?g|webp|bmp|gif)/i);
+    const imgMatch = text.match(/\[Image\s*#?(\d+)[^\]]*\]/i) ?? text.match(/[\w\-./\\]+\.(png|jpe?g|webp|bmp|gif)/i);
+
     if (imgMatch) {
-      const matched = imgMatch[0] ?? "Image";
-      ctx.ui.setStatus("image-preview", `🖼️ ${matched}: /preview-image to preview · /open-image to open`);
+      const matchedToken = imgMatch[0] ?? "Image";
+      const resolved = resolveImageTarget(matchedToken, ctx.cwd);
 
-      // If it looks like a local file path, attempt automatic floating preview
-      if (/\.(png|jpe?g|webp|bmp|gif)$/i.test(matched)) {
-        await launchPreview(matched, ctx);
+      if (resolved) {
+        ctx.ui.setStatus("image-preview", `🖼️ ${resolved.name}: preview abierta junto al cursor`);
+        ctx.ui.setWidget?.("aboveEditor", [
+          `🖼️ [Image] ${resolved.name} · /preview-image para ver flotante · /open-image para visor del sistema`
+        ]);
+
+        // Automatically open the floating preview window beside the pointer!
+        launchPreview(resolved.path, ctx);
+
+        ctx.setTimeout?.(() => {
+          ctx.ui.setStatus("image-preview", undefined);
+          ctx.ui.setWidget?.("aboveEditor", undefined);
+        }, 8000);
       }
-
-      ctx.setTimeout?.(() => {
-        ctx.ui.setStatus("image-preview", undefined);
-      }, 8000);
     }
   });
 

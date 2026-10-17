@@ -9,6 +9,10 @@ Opens a floating, borderless preview window right beside your mouse pointer outs
   - Borderless, dark background, rounded padding, sharp 1:1 image rendering.
   - Never steals keyboard focus or mouse clicks (`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT`).
   - Automatically bounds itself within the monitor workspace so it never covers your pointer or spills off-screen.
+- **Automatic Token Resolution**:
+  - Automatically resolves `[Image #1]`, `[Image #1, 1172x631]`, `#1`, `1`, or local file paths.
+  - Omitted argument (`/preview-image`) automatically defaults to the latest image attachment in the session.
+  - Reads directly from session attachments and blob storage, automatically converting formats like WebP for GDI+ compatibility.
 - **Native OS Implementation**:
   - **macOS**: AppKit HUD panel with blur material and drop shadow via `osascript` (JXA).
   - **Windows**: Borderless tool window via PowerShell `System.Windows.Forms`.
@@ -18,9 +22,11 @@ Opens a floating, borderless preview window right beside your mouse pointer outs
 ## Commands
 
 ```text
-/preview-image path/to/image.png     # Opens floating window by pointer
-/open-image path/to/image.png        # Opens in system default viewer
-/close-preview                       # Closes active preview window
+/preview-image                   # Opens floating window by pointer for latest image
+/preview-image [Image #1]        # Opens floating window by pointer for Image #1
+/preview-image path/to/image.png # Opens floating window by pointer for specified file
+/open-image [Image #1]           # Opens in system default viewer (Preview/Photos/xdg-open)
+/close-preview                   # Closes active preview window
 ```
 
 ## Tool Specification
@@ -30,7 +36,7 @@ The assistant can also trigger previews or inspect images:
 {
   "name": "preview_image",
   "parameters": {
-    "path": "screenshots/login.png",
+    "path": "[Image #1]",
     "action": "preview"
   }
 }

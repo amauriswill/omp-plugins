@@ -154,7 +154,7 @@ public class ImagePreviewPopup : Form {
   }
 }
 Add-Type -Path $assembly
-try { $image = [System.Drawing.Image]::FromFile($env:IMAGE_PREVIEW_FILE) } catch { [Console]::Out.WriteLine('error: cannot read the image'); exit 1 }
+try { $image = [System.Drawing.Image]::FromFile($env:IMAGE_PREVIEW_FILE) } catch { exit 1 }
 $cursor = [System.Windows.Forms.Cursor]::Position
 $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
 $fit = [Math]::Min(1.0, [Math]::Min($largest / [Math]::Max($image.Width, $image.Height), [Math]::Min($area.Width * 0.7 / $image.Width, $area.Height * 0.7 / $image.Height)))
@@ -182,15 +182,10 @@ $box.Dock = 'Fill'
 $box.SizeMode = 'Zoom'
 $box.Image = $image
 $form.Controls.Add($box)
-$form.add_Shown({ [Console]::Out.WriteLine('shown'); [Console]::Out.Flush() })
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $life * 1000
 $timer.add_Tick({ $form.Close() })
 $timer.Start()
-$beat = New-Object System.Windows.Forms.Timer
-$beat.Interval = 100
-$beat.add_Tick({ try { [Console]::Out.WriteLine('.'); [Console]::Out.Flush() } catch { $form.Close() } })
-$beat.Start()
 [System.Windows.Forms.Application]::Run($form)
 `;
 
@@ -225,6 +220,8 @@ export function spawnFloatingPreview(
         stdio: ["ignore", "pipe", "pipe"],
         detached: true
       });
+      child.stdout?.resume();
+      child.stderr?.resume();
       child.unref();
       return child;
     }
@@ -241,6 +238,8 @@ export function spawnFloatingPreview(
           detached: true
         }
       );
+      child.stdout?.resume();
+      child.stderr?.resume();
       child.unref();
       return child;
     }
@@ -250,6 +249,8 @@ export function spawnFloatingPreview(
       stdio: ["ignore", "pipe", "pipe"],
       detached: true
     });
+    child.stdout?.resume();
+    child.stderr?.resume();
     child.unref();
     return child;
   } catch {
