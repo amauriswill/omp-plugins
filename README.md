@@ -46,7 +46,7 @@ Compatible de forma nativa en **Windows**, **macOS** y **Linux**.
 | **Token Meter** | Extensión & Telemetría | Barra de estado y `/tokens` | Medición en tiempo real de tokens de entrada (`↑`), salida (`↓`), caché (`c:`) y acumulado (`Σ`). | Windows · macOS · Linux |
 | **Sub Meter** | Extensión & Telemetría | Barra de estado y `/sub-meter` | Rastreo visual con barras de progreso de ventanas de tarifa (5h / 7d) y tiempos de reinicio. | Windows · macOS · Linux |
 | **After** | Comando & Cola | `/after <tarea>`, `/before` | Cola de prompts pendientes que se ejecutan automáticamente en cuanto el agente queda libre. | Windows · macOS · Linux |
-| **Image Preview** | Herramienta & Comando | `/preview-image` | Previsualizador gráfico en terminal usando medios bloques ANSI 24-bit (`▀`) y arte ASCII. | Windows · macOS · Linux |
+| **Image Preview** | Herramienta & Comando | `/preview-image`, `/open-image` | Ventana flotante sin bordes junto al puntero sin perder foco de terminal, y visor del sistema. | Windows · macOS · Linux |
 
 ---
 
@@ -186,22 +186,27 @@ Las tareas se marcan en la barra de estado (`📋 Queue (2)`) y se despachan de 
 
 ---
 
-### 7. Image Preview (`/preview-image`)
+### 7. Image Preview (`/preview-image`, `/open-image`)
 
-Permite visualizar imágenes directamente en la consola sin salir de la terminal ni abrir visores externos.
+Abre una ventana flotante y sin bordes con la imagen en resolución nítida y proporción real **directamente junto al cursor del ratón, fuera de la terminal**, sin robar el foco del teclado ni interrumpir lo que estás escribiendo.
 
-**Características:**
-- **Decodificadores Pure TypeScript**: Decodifica archivos `.bmp` y `.png` (mediante descompresión nativa `node:zlib`) sin requerir binarios externos.
-- **Renderizado Truecolor**: Utiliza medios bloques Unicode (`▀`) combinando colores de primer plano y fondo ANSI de 24 bits (`\x1b[38;2;R;G;Bm`).
-- **Modo ASCII**: Soporta degradado monocromático de luminancia para terminales estándar.
-- **Herramienta para el Asistente**: Expone la herramienta `preview_image` para que el modelo pueda inspeccionar capturas de pantalla, diagramas o gráficos generados.
-- **Detección Automática**: Reconoce referencias como `[Image #1]` o rutas de imágenes pegadas en el prompt.
+**Comportamiento de la ventana:**
+- **No roba foco ni activación**: Puedes continuar escribiendo comandos en la terminal mientras la imagen flota junto al puntero.
+- **Alineación inteligente**: Se posiciona automáticamente arriba/abajo o a los lados del cursor para nunca tapar el puntero ni salirse de la pantalla.
+- **Nativa en cada sistema operativo**:
+  - **macOS**: Panel AppKit HUD con esquinas redondeadas y material traslúcido vía `osascript` (JXA).
+  - **Windows**: Ventana de herramientas sin bordes (`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT`) vía PowerShell `System.Windows.Forms`.
+  - **Linux**: Ventana tooltip ligera sobre X11 vía Python `tkinter`.
 
+**Comandos:**
 ```text
-/preview-image assets/diagram.png
+/preview-image ruta/a/captura.png    # Abre la ventana flotante junto al puntero
+/open-image ruta/a/captura.png       # Abre en el visor predeterminado del sistema (Preview / Fotos / xdg-open)
+/close-preview                       # Cierra la ventana flotante activa
 ```
 
----
+**Herramienta para el modelo:**
+El asistente dispone de la herramienta `preview_image` con acciones `"preview"` (abrir ventana flotante), `"open"` (abrir en el visor del sistema) y `"close"`.
 
 ## 📥 Instalación
 
@@ -283,7 +288,7 @@ omp plugin link ./plugins/image-preview
 | **token-meter** | ✅ Nativo (In-process TS) | ✅ Nativo (In-process TS) | ✅ Nativo (In-process TS) |
 | **sub-meter** | ✅ Probado (`omp usage`) | ✅ Probado (`omp usage`) | ✅ Probado (`omp usage`) |
 | **after** | ✅ Nativo (Lifecycle Hooks) | ✅ Nativo (Lifecycle Hooks) | ✅ Nativo (Lifecycle Hooks) |
-| **image-preview** | ✅ Pure TS + PowerShell fallback | ✅ Pure TS + `sips` fallback | ✅ Pure TS + `convert`/`ffmpeg` fallback |
+| **image-preview** | ✅ Ventana flotante WinForms (PowerShell) | ✅ Panel HUD AppKit (`osascript`) | ✅ Tooltip X11 (`tkinter`) |
 
 ---
 

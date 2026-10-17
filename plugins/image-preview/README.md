@@ -1,36 +1,41 @@
 # Image Preview Plugin for omp
 
-Provides cross-platform in-terminal graphical image preview using ANSI 24-bit truecolor half-blocks (`▀`) and ASCII art.
+Opens a floating, borderless preview window right beside your mouse pointer outside the terminal, keeping the terminal focused and never stealing keyboard input.
 
 ## Features
 
-- **Slash command `/preview-image <path>`**: Render PNG, JPG, WebP, GIF, or BMP images directly in your terminal transcript.
-- **LLM Tool `preview_image`**: Allows omp to visually inspect images directly within the conversation.
-- **Prompt Hook**: Detects pasted image tokens like `[Image #1]` or image file paths and displays a preview indicator in the status line.
+- **Floating Tool Window by Pointer**:
+  - Pops up directly above/beside the mouse pointer outside the terminal.
+  - Borderless, dark background, rounded padding, sharp 1:1 image rendering.
+  - Never steals keyboard focus or mouse clicks (`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT`).
+  - Automatically bounds itself within the monitor workspace so it never covers your pointer or spills off-screen.
+- **Native OS Implementation**:
+  - **macOS**: AppKit HUD panel with blur material and drop shadow via `osascript` (JXA).
+  - **Windows**: Borderless tool window via PowerShell `System.Windows.Forms`.
+  - **Linux**: X11 tooltip window via Python3 `tkinter`.
+- **System Default Viewer**: Click or invoke `/open-image <path>` to open in the system viewer (Preview on macOS, Photos/Explorer on Windows, `xdg-open` on Linux).
 
 ## Commands
 
 ```text
-/preview-image path/to/screenshot.png
+/preview-image path/to/image.png     # Opens floating window by pointer
+/open-image path/to/image.png        # Opens in system default viewer
+/close-preview                       # Closes active preview window
 ```
 
 ## Tool Specification
 
+The assistant can also trigger previews or inspect images:
 ```json
 {
   "name": "preview_image",
   "parameters": {
-    "path": "path/to/image.png",
-    "cols": 64,
-    "mode": "color"
+    "path": "screenshots/login.png",
+    "action": "preview"
   }
 }
 ```
-
-## Cross-Platform Compatibility
-
-Tested and fully supported on **Windows**, **macOS**, and **Linux**:
-- **Pure TypeScript Decoders**: Built-in decoders for uncompressed BMP and full PNG (with `node:zlib`).
-- **macOS**: Native integration with `sips` for JPG/WebP/GIF conversion.
-- **Linux**: Automatic fallback via `convert` (ImageMagick), `ffmpeg`, or `python3`.
-- **Windows**: Built-in PowerShell `System.Drawing` conversion fallback.
+Actions:
+- `"preview"`: Opens the floating preview window beside cursor.
+- `"open"`: Opens in the system default image viewer.
+- `"close"`: Closes the active floating preview.

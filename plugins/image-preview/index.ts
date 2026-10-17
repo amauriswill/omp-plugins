@@ -1,139 +1,164 @@
+import type { ChildProcess } from "node:child_process";
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
-import { parseBmp, parsePng, renderAscii, renderHalfBlocks, type PixelGrid } from "./pixels";
-
-async function loadPixelGrid(filePath: string, pi: ExtensionAPI, ctx: ExtensionContext): Promise<PixelGrid | null> {
-  try {
-    const rawBytes = await fs.readFile(filePath);
-    const u8 = new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
-
-    // 1. Pure TypeScript PNG decode (cross-platform, zero external dependencies)
-    const pngGrid = parsePng(u8);
-    if (pngGrid) return pngGrid;
-
-    // 2. Pure TypeScript BMP decode (cross-platform, zero external dependencies)
-    const bmpGrid = parseBmp(u8);
-    if (bmpGrid) return bmpGrid;
-
-    // 3. Platform-specific conversion for other formats (JPG, WebP, GIF)
-    const tempBmp = path.join(os.tmpdir(), `omp_img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.bmp`);
-
-    if (process.platform === "darwin") {
-      // macOS: sips is built-in on 100% of Macs
-      const cmd = `sips -s format bmp "${filePath.replace(/"/g, '\\"')}" --out "${tempBmp}"`;
-      const res = await pi.exec(cmd, { cwd: ctx.cwd });
-      if (res.exitCode === 0) {
-        const bmpBytes = await fs.readFile(tempBmp);
-        await fs.unlink(tempBmp).catch(() => {});
-        return parseBmp(new Uint8Array(bmpBytes.buffer, bmpBytes.byteOffset, bmpBytes.byteLength));
-      }
-    } else if (process.platform === "win32") {
-      // Windows: PowerShell System.Drawing
-      const escaped = filePath.replace(/'/g, "''");
-      const outEscaped = tempBmp.replace(/'/g, "''");
-      const script = `Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('${escaped}'); $bmp = New-Object System.Drawing.Bitmap($img); $bmp.Save('${outEscaped}', [System.Drawing.Imaging.ImageFormat]::Bmp); $img.Dispose(); $bmp.Dispose()`;
-      const res = await pi.exec(`powershell -NoProfile -Command "${script}"`, { cwd: ctx.cwd });
-      if (res.exitCode === 0) {
-        const bmpBytes = await fs.readFile(tempBmp);
-        await fs.unlink(tempBmp).catch(() => {});
-        return parseBmp(new Uint8Array(bmpBytes.buffer, bmpBytes.byteOffset, bmpBytes.byteLength));
-      }
-    } else {
-      // Linux / Unix: check convert (ImageMagick), ffmpeg, or python3
-      const convertCmd = `convert "${filePath.replace(/"/g, '\\"')}" bmp:"${tempBmp}" 2>/dev/null || ffmpeg -y -v error -i "${filePath.replace(/"/g, '\\"')}" "${tempBmp}" 2>/dev/null`;
-      const res = await pi.exec(convertCmd, { cwd: ctx.cwd });
-      if (res.exitCode === 0) {
-        const bmpBytes = await fs.readFile(tempBmp);
-        await fs.unlink(tempBmp).catch(() => {});
-        return parseBmp(new Uint8Array(bmpBytes.buffer, bmpBytes.byteOffset, bmpBytes.byteLength));
-      }
-    }
-  } catch {
-    // Read or conversion failure
-  }
-
-  return null;
-}
+import { openInSystemViewer, spawnFloatingPreview } from "./window";
 
 export default function imagePreviewPlugin(pi: ExtensionAPI) {
   pi.setLabel("Image Preview");
   const z = pi.zod;
 
+  let activePreviewProcess: ChildProcess | null = null;
+
+  const closeActivePreview = () => {
+    if (activePreviewProcess) {
+      try {
+        activePreviewProcess.kill();
+      } catch {
+        // Process already exited
+      }
+      activePreviewProcess = null;
+    }
+  };
+
+  const launchPreview = async (filePath: string, ctx: ExtensionContext): Promise<boolean> => {
+    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(ctx.cwd, filePath);
+
+    try {
+      await fs.access(fullPath);
+    } catch {
+      return false;
+    }
+
+    closeActivePreview();
+    activePreviewProcess = spawnFloatingPreview(fullPath, 800, 120);
+
+    if (activePreviewProcess) {
+      activePreviewProcess.on("exit", () => {
+        activePreviewProcess = null;
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  // Tool: preview_image
   pi.registerTool({
     name: "preview_image",
     label: "Preview Image",
-    description: "Renders an image file to the terminal using ANSI truecolor half-blocks or ASCII art",
+    description: "Opens a sharp, borderless floating preview window by the mouse pointer outside the terminal, or opens in default system viewer",
     parameters: z.object({
       path: z.string().describe("Path to the image file (png, jpg, webp, bmp, gif)"),
-      cols: z.number().optional().default(64).describe("Max columns width for terminal display (default: 64)"),
-      mode: z.enum(["color", "ascii"]).optional().default("color").describe("Display mode: 'color' (ANSI truecolor) or 'ascii'")
+      action: z
+        .enum(["preview", "open", "close"])
+        .optional()
+        .default("preview")
+        .describe("Action: 'preview' (floating window by cursor), 'open' (system viewer), or 'close'")
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const fullPath = path.isAbsolute(params.path) ? params.path : path.join(ctx.cwd, params.path);
-      const grid = await loadPixelGrid(fullPath, pi, ctx);
 
-      if (!grid) {
+      if (params.action === "close") {
+        closeActivePreview();
         return {
-          content: [{ type: "text", text: `Unable to decode image at ${params.path}. File may be missing or unsupported.` }],
-          details: { error: "decode_failed", path: params.path }
+          content: [{ type: "text", text: "Preview window closed." }],
+          details: { action: "close" }
         };
       }
 
-      const rendered = params.mode === "ascii"
-        ? renderAscii(grid, params.cols, Math.round(params.cols / 2))
-        : renderHalfBlocks(grid, params.cols, Math.round(params.cols / 2));
+      if (params.action === "open") {
+        openInSystemViewer(fullPath);
+        return {
+          content: [{ type: "text", text: `Opened ${path.basename(params.path)} in system default viewer.` }],
+          details: { action: "open", path: fullPath }
+        };
+      }
+
+      const ok = await launchPreview(fullPath, ctx);
+      if (!ok) {
+        return {
+          content: [{ type: "text", text: `Unable to open preview for ${params.path}. File may not exist or window creation failed.` }],
+          details: { error: "preview_failed", path: fullPath }
+        };
+      }
 
       return {
         content: [
-          { type: "text", text: `Image: ${path.basename(params.path)} (${grid.width}x${grid.height})\n\n${rendered}` }
+          {
+            type: "text",
+            text: `Floating preview window opened beside pointer for ${path.basename(params.path)}. Use /open-image to open in system viewer.`
+          }
         ],
-        details: { width: grid.width, height: grid.height, path: params.path }
+        details: { action: "preview", path: fullPath }
       };
     }
   });
 
+  // Slash command: /preview-image
   pi.registerCommand("preview-image", {
-    description: "Preview an image in the terminal (/preview-image <file.png>)",
+    description: "Open a floating preview window by the pointer (/preview-image <file.png>)",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
-      const fileArg = args.trim();
-      if (!fileArg) {
+      const target = args.trim();
+      if (!target) {
         ctx.ui.notify("Usage: /preview-image <path/to/image.png>", "warning");
         return;
       }
 
-      const fullPath = path.isAbsolute(fileArg) ? fileArg : path.join(ctx.cwd, fileArg);
-      const grid = await loadPixelGrid(fullPath, pi, ctx);
-
-      if (!grid) {
-        ctx.ui.notify(`Could not load or decode image: ${fileArg}`, "error");
-        return;
+      const ok = await launchPreview(target, ctx);
+      if (ok) {
+        ctx.ui.notify(`🖼️ Floating preview window opened for ${path.basename(target)}`, "info");
+      } else {
+        ctx.ui.notify(`Failed to open preview for "${target}". Check if file exists.`, "error");
       }
-
-      const asciiArt = renderHalfBlocks(grid, 60, 30);
-      pi.sendMessage(
-        {
-          customType: "image-preview",
-          content: `Preview of \`${path.basename(fileArg)}\` (${grid.width}×${grid.height}px):\n\n${asciiArt}`,
-          display: true,
-          attribution: "agent"
-        },
-        { triggerTurn: false }
-      );
-      ctx.ui.notify(`Previewed ${path.basename(fileArg)} (${grid.width}×${grid.height})`, "info");
     }
   });
 
+  // Slash command: /open-image
+  pi.registerCommand("open-image", {
+    description: "Open the image in the system default viewer (Preview, Photos, xdg-open)",
+    handler: async (args: string, ctx: ExtensionCommandContext) => {
+      const target = args.trim();
+      if (!target) {
+        ctx.ui.notify("Usage: /open-image <path/to/image.png>", "warning");
+        return;
+      }
+
+      const fullPath = path.isAbsolute(target) ? target : path.join(ctx.cwd, target);
+      openInSystemViewer(fullPath);
+      ctx.ui.notify(`Opened ${path.basename(target)} in system default viewer`, "info");
+    }
+  });
+
+  // Slash command: /close-preview
+  pi.registerCommand("close-preview", {
+    description: "Close active floating image preview window",
+    handler: async (_args: string, ctx: ExtensionCommandContext) => {
+      closeActivePreview();
+      ctx.ui.notify("Preview window closed", "info");
+    }
+  });
+
+  // Hook: detect image references in prompts
   pi.on("input", async (event, ctx: ExtensionContext) => {
     const text = event.text;
     const imgMatch = text.match(/\[Image #\d+\]|[\w\-./\\]+\.(png|jpe?g|webp|bmp|gif)/i);
     if (imgMatch) {
-      const matchedName = imgMatch[0] ?? "Image";
-      ctx.ui.setStatus("image-detected", `🖼️ ${matchedName}`);
+      const matched = imgMatch[0] ?? "Image";
+      ctx.ui.setStatus("image-preview", `🖼️ ${matched}: /preview-image to preview · /open-image to open`);
+
+      // If it looks like a local file path, attempt automatic floating preview
+      if (/\.(png|jpe?g|webp|bmp|gif)$/i.test(matched)) {
+        await launchPreview(matched, ctx);
+      }
+
       ctx.setTimeout?.(() => {
-        ctx.ui.setStatus("image-detected", undefined);
-      }, 5000);
+        ctx.ui.setStatus("image-preview", undefined);
+      }, 8000);
     }
+  });
+
+  pi.on("session_shutdown", () => {
+    closeActivePreview();
   });
 }
