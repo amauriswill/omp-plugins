@@ -58,10 +58,21 @@ function run () {
   panel.contentView = backdrop
   panel.orderFrontRegardless
   say('shown')
-  const end = Date.now() + (Number(read('IMAGE_PREVIEW_LIFE')) || 120) * 1000
-  while (Date.now() < end) {
-    $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.1))
-    say('.')
+  let entered = false
+  const initial = mouse
+  const startTime = Date.now()
+  while (true) {
+    $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.04))
+    const cur = $.NSEvent.mouseLocation
+    const inBounds = (cur.x >= x && cur.x <= x + outer.width && cur.y >= y && cur.y <= y + outer.height)
+    if (inBounds) {
+      entered = true
+    } else if (entered) {
+      break
+    } else {
+      const dist = Math.hypot(cur.x - initial.x, cur.y - initial.y)
+      if (dist > 35 || (Date.now() - startTime > 4000)) break
+    }
   }
 }
 `;
@@ -113,18 +124,27 @@ root.geometry('%dx%d+%d+%d' % (width, height, x, y))
 root.deiconify()
 root.update_idletasks()
 print('shown', flush=True)
+entered = False
+initial_x, initial_y = mouse_x, mouse_y
+start_time = time.time()
 
-def beat():
-    try:
-        print('.', flush=True)
-    except (BrokenPipeError, OSError):
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+def check_hover():
+    global entered
+    cur_x, cur_y = root.winfo_pointerxy()
+    in_bounds = (x <= cur_x <= x + width and y <= cur_y <= y + height)
+    if in_bounds:
+        entered = True
+    elif entered:
         root.destroy()
         return
-    root.after(100, beat)
+    else:
+        dist = math.hypot(cur_x - initial_x, cur_y - initial_y)
+        if dist > 35 or (time.time() - start_time > 4.0):
+            root.destroy()
+            return
+    root.after(35, check_hover)
 
-beat()
-root.after(int(life * 1000), root.destroy)
+check_hover()
 root.mainloop()
 `;
 
@@ -194,10 +214,48 @@ $form.add_KeyDown({
   if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { $form.Close() }
 })
 $form.Controls.Add($box)
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = $life * 1000
-$timer.add_Tick({ $form.Close() })
-$timer.Start()
+$script:enteredWindow = $false
+$script:startTime = [DateTime]::UtcNow
+
+$hoverTimer = New-Object System.Windows.Forms.Timer
+$hoverTimer.Interval = 35
+$hoverTimer.add_Tick({
+  $pos = [System.Windows.Forms.Cursor]::Position
+
+  if ($form.Bounds.Contains($pos)) {
+    $script:enteredWindow = $true
+    return
+  }
+
+  if ($script:enteredWindow) {
+    $form.Close()
+    return
+  }
+
+  $envelope = [System.Drawing.Rectangle]::FromLTRB(
+    [Math]::Min($initialCursor.X, $form.Bounds.Left) - 20,
+    [Math]::Min($initialCursor.Y, $form.Bounds.Top) - 20,
+    [Math]::Max($initialCursor.X, $form.Bounds.Right) + 20,
+    [Math]::Max($initialCursor.Y, $form.Bounds.Bottom) + 20
+  )
+
+  $dx = $pos.X - $initialCursor.X
+  $dy = $pos.Y - $initialCursor.Y
+  $dist = [Math]::Sqrt($dx * $dx + $dy * $dy)
+
+  if (-not $envelope.Contains($pos) -or ($dist -gt 35)) {
+    $form.Close()
+    return
+  }
+
+  $elapsed = ([DateTime]::UtcNow - $script:startTime).TotalSeconds
+  if ($elapsed -gt 4.0) {
+    $form.Close()
+    return
+  }
+})
+$hoverTimer.Start()
+
 [System.Windows.Forms.Application]::Run($form)
 `;
 

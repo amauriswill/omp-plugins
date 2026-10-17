@@ -1,7 +1,7 @@
 {
   "name": "image-preview",
-  "version": "1.0.1",
-  "description": "Floating borderless image preview by mouse pointer and system viewer integration",
+  "version": "1.0.2",
+  "description": "Floating borderless image preview visible strictly while hovering, with system viewer integration on click",
   "main": "index.ts",
   "type": "module",
   "omp": {
